@@ -1,0 +1,362 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <title>VoiceNote — Personal Transcriber</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a; --surface: #141414; --surface2: #1c1c1c;
+      --border: #2a2a2a; --accent: #e8ff5a; --accent2: #ff6b35;
+      --text: #f0f0f0; --muted: #6a6a6a; --danger: #ff4757; --radius: 16px;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; overflow-x: hidden; }
+    body { display: flex; flex-direction: column; min-height: 100dvh; }
+    header { padding: 20px 24px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 100; }
+    .logo { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em; }
+    .logo span { color: var(--accent); }
+    .lang-toggle { display: flex; gap: 6px; background: var(--surface); border-radius: 999px; padding: 4px; border: 1px solid var(--border); }
+    .lang-btn { font-family: 'DM Mono', monospace; font-size: 0.7rem; padding: 5px 12px; border-radius: 999px; border: none; cursor: pointer; background: transparent; color: var(--muted); transition: all 0.2s; letter-spacing: 0.05em; }
+    .lang-btn.active { background: var(--accent); color: #0a0a0a; font-weight: 600; }
+    .tabs { display: flex; padding: 16px 24px 0; border-bottom: 1px solid var(--border); }
+    .tab { font-family: 'Syne', sans-serif; font-size: 0.8rem; font-weight: 600; padding: 10px 20px; background: none; border: none; color: var(--muted); cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; position: relative; transition: color 0.2s; }
+    .tab.active { color: var(--text); }
+    .tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--accent); }
+    .panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .panel.active { display: flex; }
+    #panel-record { align-items: center; justify-content: center; padding: 32px 24px; gap: 24px; }
+    .recorder-core { display: flex; flex-direction: column; align-items: center; gap: 24px; width: 100%; max-width: 340px; }
+    .waveform-wrap { width: 100%; height: 72px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; position: relative; }
+    #waveform { width: 100%; height: 100%; }
+    .waveform-idle { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; }
+    .record-btn-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+    .pulse-ring { position: absolute; width: 96px; height: 96px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; }
+    .recording .pulse-ring { animation: pulse 1.4s ease-out infinite; }
+    @keyframes pulse { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.9); opacity: 0; } }
+    #btn-record { width: 80px; height: 80px; border-radius: 50%; border: none; background: var(--accent); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; position: relative; z-index: 1; }
+    #btn-record:hover { transform: scale(1.05); }
+    #btn-record.recording { background: var(--danger); box-shadow: 0 8px 32px rgba(255,71,87,0.4); }
+    .rec-icon { width: 28px; height: 28px; background: #0a0a0a; border-radius: 50%; transition: border-radius 0.25s; }
+    #btn-record.recording .rec-icon { border-radius: 4px; width: 22px; height: 22px; }
+    .timer-display { font-family: 'DM Mono', monospace; font-size: 2.4rem; font-weight: 300; letter-spacing: 0.05em; color: var(--text); min-width: 140px; text-align: center; }
+    .timer-display.active { color: var(--accent); }
+    .status-line { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); height: 20px; }
+    .status-line.rec { color: var(--danger); }
+    .transcript-preview { width: 100%; max-width: 340px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; min-height: 120px; max-height: 220px; overflow-y: auto; font-family: 'DM Mono', monospace; font-size: 0.82rem; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+    .transcript-preview .placeholder { color: var(--muted); font-style: italic; }
+    .api-section { width: 100%; max-width: 340px; }
+    .api-section details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .api-section summary { padding: 12px 16px; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', monospace; }
+    .api-section summary::before { content: '▶'; font-size: 0.6rem; transition: transform 0.2s; }
+    .api-section details[open] summary::before { transform: rotate(90deg); }
+    .api-inner { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+    .api-row { display: flex; flex-direction: column; gap: 6px; }
+    .api-row label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+    .api-row select, .api-row input { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem; outline: none; width: 100%; transition: border-color 0.2s; }
+    .api-row input:focus { border-color: var(--accent); }
+    .save-api-btn { background: var(--accent); color: #0a0a0a; border: none; border-radius: 8px; padding: 9px 16px; font-family: 'Syne', sans-serif; font-size: 0.78rem; font-weight: 700; cursor: pointer; align-self: flex-start; }
+    .notice-banner { background: rgba(232,255,90,0.07); border: 1px solid rgba(232,255,90,0.2); border-radius: 12px; padding: 10px 14px; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: rgba(232,255,90,0.8); line-height: 1.6; }
+    #panel-notes { flex-direction: column; overflow: hidden; }
+    .notes-toolbar { padding: 14px 24px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .search-wrap { flex: 1; min-width: 160px; position: relative; }
+    .search-wrap input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px 8px 36px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.78rem; outline: none; }
+    .search-wrap::before { content: '⌕'; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1.1rem; pointer-events: none; }
+    .toolbar-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .toolbar-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .notes-list { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+    .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); padding: 48px; text-align: center; }
+    .empty-state .big { font-size: 2.5rem; }
+    .empty-state p { font-family: 'DM Mono', monospace; font-size: 0.78rem; line-height: 1.6; }
+    .note-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color 0.2s; }
+    .note-card:hover { border-color: #3a3a3a; }
+    .note-header { padding: 14px 16px 10px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .note-meta { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+    .note-title { font-size: 0.88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .note-info { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--muted); display: flex; gap: 10px; }
+    .lang-badge { font-family: 'DM Mono', monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent); letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0; }
+    .note-preview { padding: 0 16px 12px; font-family: 'DM Mono', monospace; font-size: 0.76rem; color: #aaa; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .note-actions { border-top: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .note-btn { font-family: 'DM Mono', monospace; font-size: 0.65rem; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.15s; }
+    .note-btn:hover { color: var(--text); border-color: #555; }
+    .note-btn.copy:hover { color: var(--accent); border-color: var(--accent); }
+    .note-btn.download:hover { color: #7be8a0; border-color: #7be8a0; }
+    .note-btn.delete:hover { color: var(--danger); border-color: var(--danger); }
+    .note-full-text { display: none; padding: 0 16px 14px; font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--text); line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+    .note-card.expanded .note-preview { display: none; }
+    .note-card.expanded .note-full-text { display: block; }
+    .note-title[contenteditable="true"] { outline: none; border-bottom: 1px solid var(--accent); }
+    .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; padding: 10px 20px; font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text); z-index: 999; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); white-space: nowrap; pointer-events: none; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--accent); color: var(--accent); }
+    .toast.error { border-color: var(--danger); color: var(--danger); }
+    .processing-indicator { display: none; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); width: 100%; max-width: 340px; }
+    .processing-indicator.show { display: flex; }
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .processing-indicator span { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.06em; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Voice<span>Note</span></div>
+    <div class="lang-toggle">
+      <button class="lang-btn active" onclick="setLang('hi-IN',this)">हिंदी</button>
+      <button class="lang-btn" onclick="setLang('en-IN',this)">English</button>
+      <button class="lang-btn" onclick="setLang('hi-IN',this)">Mix</button>
+    </div>
+  </header>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('record',this)">⏺ Record</button>
+    <button class="tab" onclick="switchTab('notes',this)">📋 Notes (<span id="note-count">0</span>)</button>
+  </div>
+  <div id="panel-record" class="panel active">
+    <div class="recorder-core">
+      <div class="waveform-wrap">
+        <canvas id="waveform"></canvas>
+        <div class="waveform-idle" id="waveform-idle">— tap record to begin —</div>
+      </div>
+      <div class="record-btn-wrap" id="record-btn-wrap">
+        <div class="pulse-ring"></div>
+        <button id="btn-record" onclick="toggleRecord()">
+          <div class="rec-icon"></div>
+        </button>
+      </div>
+      <div class="timer-display" id="timer">00:00</div>
+      <div class="status-line" id="status-line">ready</div>
+      <div class="processing-indicator" id="processing-indicator">
+        <div class="spinner"></div>
+        <span>transcribing audio...</span>
+      </div>
+    </div>
+    <div class="transcript-preview" id="transcript-preview">
+      <span class="placeholder">Your transcription will appear here after recording stops…</span>
+    </div>
+    <div class="api-section">
+      <details id="api-details">
+        <summary>⚙ Transcription Engine</summary>
+        <div class="api-inner">
+          <div class="api-row">
+            <label>Engine</label>
+            <select id="engine-select" onchange="onEngineChange()">
+              <option value="browser">Browser Built-in (free, offline)</option>
+              <option value="whisper">OpenAI Whisper API (best Hindi+English)</option>
+              <option value="claude">Claude API (contextual)</option>
+            </select>
+          </div>
+          <div id="api-key-row" class="api-row" style="display:none">
+            <label id="api-key-label">API Key</label>
+            <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off" />
+          </div>
+          <button class="save-api-btn" onclick="saveConfig()">Save</button>
+          <div class="notice-banner" id="engine-notice">Browser built-in is free and offline. For best Hindi+English, use Whisper API.</div>
+        </div>
+      </details>
+    </div>
+  </div>
+  <div id="panel-notes" class="panel">
+    <div class="notes-toolbar">
+      <div class="search-wrap">
+        <input type="text" placeholder="search notes…" id="search-input" oninput="renderNotes()" />
+      </div>
+      <button class="toolbar-btn" onclick="exportAll()">↓ Export All</button>
+      <button class="toolbar-btn" onclick="clearAll()">✕ Clear All</button>
+    </div>
+    <div class="notes-list" id="notes-list">
+      <div class="empty-state" id="empty-state">
+        <div class="big">🎙</div>
+        <p>No notes yet.<br/>Record something and it'll appear here.</p>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+<script>
+let notes=JSON.parse(localStorage.getItem('vn_notes')||'[]');
+let config=JSON.parse(localStorage.getItem('vn_config')||'{"engine":"browser","apiKey":"","lang":"hi-IN"}');
+let currentLang=config.lang||'hi-IN';
+let mediaRecorder=null,audioChunks=[],timerInterval=null,startTime=null,isRecording=false,animFrame=null;
+let recognition=null,liveTranscript='',audioCtx=null,analyser=null,sourceNode=null,stream=null;window.onload=()=>{loadConfig();renderNotes();updateCount();};
+function loadConfig(){
+document.getElementById(‘engine-select’).value=config.engine||‘browser’;
+if(config.apiKey)document.getElementById(‘api-key-input’).value=config.apiKey;
+onEngineChange();
+}
+function switchTab(name,btn){
+document.querySelectorAll(’.panel’).forEach(p=>p.classList.remove(‘active’));
+document.querySelectorAll(’.tab’).forEach(t=>t.classList.remove(‘active’));
+document.getElementById(‘panel-’+name).classList.add(‘active’);
+btn.classList.add(‘active’);
+if(name===‘notes’)renderNotes();
+}
+function setLang(lang,btn){
+currentLang=lang;
+document.querySelectorAll(’.lang-btn’).forEach(b=>b.classList.remove(‘active’));
+btn.classList.add(‘active’);
+}
+function onEngineChange(){
+const e=document.getElementById(‘engine-select’).value;
+const kr=document.getElementById(‘api-key-row’);
+const n=document.getElementById(‘engine-notice’);
+if(e===‘browser’){kr.style.display=‘none’;n.textContent=‘Free, offline. Hindi quality varies by browser/device.’;}
+else if(e===‘whisper’){kr.style.display=‘flex’;document.getElementById(‘api-key-label’).textContent=‘OpenAI API Key’;document.getElementById(‘api-key-input’).placeholder=‘sk-…’;n.textContent=‘Best Hindi+English+Hinglish. ~₹0.50/min. Get key at platform.openai.com’;}
+else{kr.style.display=‘flex’;document.getElementById(‘api-key-label’).textContent=‘Anthropic API Key’;document.getElementById(‘api-key-input’).placeholder=‘sk-ant-…’;n.textContent=‘Contextual transcription. Get key at console.anthropic.com’;}
+}
+function saveConfig(){
+config.engine=document.getElementById(‘engine-select’).value;
+config.apiKey=document.getElementById(‘api-key-input’).value;
+config.lang=currentLang;
+localStorage.setItem(‘vn_config’,JSON.stringify(config));
+document.getElementById(‘api-details’).open=false;
+showToast(‘Saved’,‘success’);
+}
+async function toggleRecord(){isRecording?stopRecording():await startRecording();}
+async function startRecording(){
+try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+catch(e){showToast(‘Mic access denied’,‘error’);return;}
+isRecording=true;audioChunks=[];liveTranscript=’’;
+document.getElementById(‘btn-record’).classList.add(‘recording’);
+document.getElementById(‘record-btn-wrap’).classList.add(‘recording’);
+setStatus(‘recording’,true);startTimer();startWaveform(stream);
+if(config.engine===‘browser’)startBrowserRec();
+mediaRecorder=new MediaRecorder(stream);
+mediaRecorder.ondataavailable=e=>{if(e.data.size>0)audioChunks.push(e.data);};
+mediaRecorder.onstop=handleStop;
+mediaRecorder.start(200);
+updatePreview(‘🔴 Recording… speak now.’);
+}
+function stopRecording(){
+isRecording=false;
+document.getElementById(‘btn-record’).classList.remove(‘recording’);
+document.getElementById(‘record-btn-wrap’).classList.remove(‘recording’);
+stopTimer();stopWaveform();setStatus(‘processing…’,false);
+if(recognition){recognition.stop();recognition=null;}
+if(mediaRecorder&&mediaRecorder.state!==‘inactive’)mediaRecorder.stop();
+if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+}
+async function handleStop(){
+if(config.engine===‘browser’){
+const t=liveTranscript.trim();
+if(t)saveNote(t);else{showToast(‘No speech detected’,‘error’);setStatus(‘ready’,false);}
+} else if(config.engine===‘whisper’){
+await transcribeWhisper();
+} else {
+showToast(‘Set engine to Whisper or Browser’,‘error’);setStatus(‘ready’,false);
+}
+}
+function startBrowserRec(){
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){showToast(‘Try Whisper — browser SR not supported’,‘error’);return;}
+recognition=new SR();
+recognition.lang=currentLang;
+recognition.continuous=true;
+recognition.interimResults=true;
+let final=’’;
+recognition.onresult=e=>{
+let interim=’’;
+for(let i=e.resultIndex;i<e.results.length;i++){
+const t=e.results[i][0].transcript;
+if(e.results[i].isFinal)final+=t+’ ’;else interim=t;
+}
+liveTranscript=final;
+updatePreview((final+interim).trim()||‘🔴 Recording…’);
+};
+recognition.onerror=e=>{if(e.error!==‘aborted’)showToast(’SR error: ’+e.error,‘error’);};
+recognition.onend=()=>{liveTranscript=final.trim();if(isRecording&&recognition){try{recognition.start();}catch(e){}}};
+try{recognition.start();}catch(e){}
+}
+async function transcribeWhisper(){
+if(!config.apiKey){showToast(‘Add OpenAI key in settings’,‘error’);setStatus(‘ready’,false);return;}
+document.getElementById(‘processing-indicator’).classList.add(‘show’);
+try{
+const blob=new Blob(audioChunks,{type:‘audio/webm’});
+const fd=new FormData();
+fd.append(‘file’,blob,‘audio.webm’);
+fd.append(‘model’,‘whisper-1’);
+fd.append(‘language’,currentLang===‘en-IN’?‘en’:‘hi’);
+fd.append(‘response_format’,‘text’);
+const r=await fetch(‘https://api.openai.com/v1/audio/transcriptions’,{method:‘POST’,headers:{‘Authorization’:’Bearer ’+config.apiKey},body:fd});
+if(!r.ok)throw new Error(’Whisper error ’+r.status);
+const t=await r.text();
+saveNote(t.trim());
+}catch(e){showToast(e.message,‘error’);setStatus(‘ready’,false);}
+finally{document.getElementById(‘processing-indicator’).classList.remove(‘show’);}
+}
+function saveNote(text){
+const now=new Date();
+const n={id:Date.now(),title:’Note ’+formatDate(now),text:text,lang:currentLang,duration:getTimer(),created:now.toISOString()};
+notes.unshift(n);persist();updateCount();setStatus(‘saved ✓’,false);updatePreview(text);renderNotes();showToast(‘Note saved!’,‘success’);
+}
+function startWaveform(s){
+document.getElementById(‘waveform-idle’).style.display=‘none’;
+audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+analyser=audioCtx.createAnalyser();analyser.fftSize=128;
+sourceNode=audioCtx.createMediaStreamSource(s);sourceNode.connect(analyser);
+const cv=document.getElementById(‘waveform’);const ctx=cv.getContext(‘2d’);
+const data=new Uint8Array(analyser.frequencyBinCount);
+function draw(){
+animFrame=requestAnimationFrame(draw);
+const W=cv.offsetWidth,H=cv.offsetHeight;cv.width=W;cv.height=H;
+analyser.getByteFrequencyData(data);ctx.clearRect(0,0,W,H);
+const bw=(W/data.length)1.8;let x=0;
+for(let i=0;i<data.length;i++){
+const v=data[i]/255,h=vH0.85,a=0.4+v0.6;
+ctx.fillStyle=rgba(232,255,90,${a});
+ctx.beginPath();ctx.roundRect(x,(H-h)/2,bw-1,h,2);ctx.fill();x+=bw+1;
+}
+}
+draw();
+}
+function stopWaveform(){
+if(animFrame)cancelAnimationFrame(animFrame);
+if(sourceNode)sourceNode.disconnect();
+if(audioCtx)audioCtx.close();
+const cv=document.getElementById(‘waveform’);
+cv.getContext(‘2d’).clearRect(0,0,cv.width,cv.height);
+document.getElementById(‘waveform-idle’).style.display=‘flex’;
+}
+function startTimer(){startTime=Date.now();timerInterval=setInterval(()=>{const el=document.getElementById(‘timer’);el.textContent=getTimer();el.classList.add(‘active’);},500);}
+function stopTimer(){clearInterval(timerInterval);document.getElementById(‘timer’).classList.remove(‘active’);}
+function getTimer(){if(!startTime)return’00:00’;const s=Math.floor((Date.now()-startTime)/1000);return String(Math.floor(s/60)).padStart(2,‘0’)+’:’+String(s%60).padStart(2,‘0’);}
+function setStatus(m,r){const el=document.getElementById(‘status-line’);el.textContent=m;el.className=‘status-line’+(r?’ rec’:’’);}
+function updatePreview(t){const el=document.getElementById(‘transcript-preview’);if(!t||t.startsWith(‘🔴’)){el.innerHTML=<span class="placeholder">${t||'Transcription appears here…'}</span>;}else{el.textContent=t;}}
+function renderNotes(){
+const q=(document.getElementById(‘search-input’)?.value||’’).toLowerCase();
+const list=document.getElementById(‘notes-list’);
+const empty=document.getElementById(‘empty-state’);
+const filtered=notes.filter(n=>!q||n.title.toLowerCase().includes(q)||n.text.toLowerCase().includes(q));
+if(!filtered.length){list.innerHTML=’’;list.appendChild(empty);empty.style.display=‘flex’;return;}
+empty.style.display=‘none’;
+list.innerHTML=filtered.map(n=> <div class="note-card" id="card-${n.id}"> <div class="note-header"> <div class="note-meta"> <div class="note-title" contenteditable="true" onblur="rename(${n.id},this)">${esc(n.title)}</div> <div class="note-info"><span>${fmtShort(new Date(n.created))}</span><span>${n.duration||''}</span></div> </div> <span class="lang-badge">${n.lang&&n.lang.startsWith('hi')?'HI':'EN'}</span> </div> <div class="note-preview">${esc(n.text)}</div> <div class="note-full-text">${esc(n.text)}</div> <div class="note-actions"> <button class="note-btn" onclick="expand(${n.id})">expand</button> <button class="note-btn copy" onclick="copyNote(${n.id})">copy</button> <button class="note-btn download" onclick="dlNote(${n.id})">download</button> <button class="note-btn delete" onclick="delNote(${n.id})">delete</button> </div> </div>).join(’’);
+}
+function expand(id){const c=document.getElementById(‘card-’+id);c.classList.toggle(‘expanded’);c.querySelector(’.note-btn’).textContent=c.classList.contains(‘expanded’)?‘collapse’:‘expand’;}
+function rename(id,el){const n=notes.find(x=>x.id===id);if(n){n.title=el.textContent.trim()||n.title;persist();}}
+function copyNote(id){const n=notes.find(x=>x.id===id);if(n)navigator.clipboard.writeText(n.text).then(()=>showToast(‘Copied!’,‘success’));}
+function dlNote(id){
+const n=notes.find(x=>x.id===id);if(!n)return;
+const b=new Blob([n.title+’\n’+n.created+’\n\n’+n.text],{type:‘text/plain;charset=utf-8’});
+const a=document.createElement(‘a’);a.href=URL.createObjectURL(b);a.download=n.title.replace(/[^a-z0-9]/gi,’’)+’.txt’;a.click();
+showToast(‘Downloaded’,‘success’);
+}
+function delNote(id){notes=notes.filter(x=>x.id!==id);persist();updateCount();renderNotes();showToast(‘Deleted’);}
+function exportAll(){
+if(!notes.length){showToast(‘No notes’,‘error’);return;}
+const b=new Blob([notes.map(n=>== ${n.title} \[${n.created}] ==\n\n${n.text}).join(’\n\n—\n\n’)],{type:‘text/plain;charset=utf-8’});
+const a=document.createElement(‘a’);a.href=URL.createObjectURL(b);a.download=’voicenotes’+new Date().toISOString().slice(0,10)+’.txt’;a.click();
+showToast(‘Exported’,‘success’);
+}
+function clearAll(){if(!confirm(‘Delete all notes?’))return;notes=[];persist();updateCount();renderNotes();}
+function persist(){localStorage.setItem(‘vn_notes’,JSON.stringify(notes));}
+function updateCount(){document.getElementById(‘note-count’).textContent=notes.length;}
+function showToast(m,t=’’){const el=document.getElementById(‘toast’);el.textContent=m;el.className=‘toast’+(t?’ ‘+t:’’);el.classList.add(‘show’);setTimeout(()=>el.classList.remove(‘show’),2500);}
+function formatDate(d){return d.toLocaleDateString(‘en-IN’,{day:‘2-digit’,month:‘short’})+’ ‘+d.toLocaleTimeString(‘en-IN’,{hour:‘2-digit’,minute:‘2-digit’});}
+function fmtShort(d){return d.toLocaleDateString(‘en-IN’,{day:‘2-digit’,month:‘short’,year:‘2-digit’});}
+function esc(t){return(t||’’).replace(/&/g,’&’).replace(/</g,’<’).replace(/>/g,’>’);}
+if(‘serviceWorker’ in navigator)navigator.serviceWorker.register(‘sw.js’).catch(()=>{});
+</script>
+</body>
+</html>
